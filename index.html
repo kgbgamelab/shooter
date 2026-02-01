@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>Space Shooter: Canvas Text</title>
+  <title>Shooter: Texture Fix</title>
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 
@@ -17,32 +17,28 @@
       position: absolute; top: 30px; width: 100%; text-align: center;
     }
     .q-text {
-      background: rgba(0, 0, 0, 0.8);
-      border: 3px solid #00ff00;
-      border-radius: 15px;
-      padding: 15px 40px;
+      background: rgba(0, 0, 0, 0.9);
+      border: 4px solid #00ff00;
+      border-radius: 12px;
+      padding: 20px 50px;
       color: #fff;
       font-family: Arial, sans-serif;
       font-size: 32px;
       font-weight: bold;
       display: inline-block;
-      box-shadow: 0 0 15px #00ff00;
+      box-shadow: 0 0 20px #00ff00;
     }
     #crosshair {
-      position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
+      position: absolute; top: 50%; left: 50%; width: 24px; height: 24px;
       transform: translate(-50%, -50%);
-      background: rgba(255, 255, 255, 0.3);
+      border: 3px solid white;
       border-radius: 50%;
-      border: 2px solid white;
+      background: rgba(255,255,255,0.2);
     }
     .crosshair-active {
-        transform: translate(-50%, -50%) scale(2.5) !important;
+        transform: translate(-50%, -50%) scale(2) !important;
         background: rgba(0, 255, 0, 0.5) !important;
         border-color: #00ff00 !important;
-    }
-    .hint {
-        position: absolute; bottom: 10%; width: 100%; text-align: center; 
-        color: white; font-family: sans-serif; opacity: 0.8; font-weight: bold;
     }
     #win-screen {
       display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -52,14 +48,14 @@
   </style>
 
   <script>
-    // --- ВАШИ УРОВНИ (РУССКИЙ ТЕКСТ ТЕПЕРЬ БУДЕТ РАБОТАТЬ) ---
+    // --- УРОВНИ ---
     const levels = [
-      { q: "Столица России?", a: [ {t:"Москва", c:true}, {t:"Париж", c:false}, {t:"Омск", c:false} ] },
-      { q: "2 + 2 = ?", a: [ {t:"4", c:true}, {t:"5", c:false}, {t:"10", c:false} ] },
-      { q: "Земля плоская?", a: [ {t:"Нет", c:true}, {t:"Да", c:false}, {t:"Возможно", c:false} ] }
+      { q: "Столица России?", a: [ {t:"Москва", c:true}, {t:"Париж", c:false}, {t:"Токио", c:false} ] },
+      { q: "2 + 2 = ?", a: [ {t:"4", c:true}, {t:"5", c:false}, {t:"0", c:false} ] },
+      { q: "Стреляй в ДА", a: [ {t:"ДА", c:true}, {t:"НЕТ", c:false}, {t:"НЕТ", c:false} ] }
     ];
 
-    // --- ЗВУК ---
+    // --- АУДИО ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(type) {
       if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -67,7 +63,6 @@
       const gain = audioCtx.createGain();
       osc.connect(gain); gain.connect(audioCtx.destination);
       const now = audioCtx.currentTime;
-      
       if (type === 'shoot') { 
         osc.frequency.setValueAtTime(600, now);
         osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
@@ -77,80 +72,58 @@
       } else if (type === 'hit') {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(200, now);
-        osc.frequency.linearRampToValueAtTime(50, now + 0.4);
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.4);
-        osc.start(now); osc.stop(now + 0.4);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
       }
     }
 
-    // --- НОВЫЙ КОМПОНЕНТ: РИСУЕМ ТЕКСТ КАК КАРТИНКУ ---
-    // Это решает проблему с шрифтами и исчезновением
-    AFRAME.registerComponent('canvas-label', {
-      schema: { 
-        text: {type: 'string', default: ''},
-        color: {type: 'string', default: 'yellow'}
-      },
+    // --- КОМПОНЕНТ: РИСУЕМ ТЕКСТ НА ХОЛСТЕ (ЧТОБЫ БЫЛО ВИДНО) ---
+    AFRAME.registerComponent('text-texture', {
+      schema: { text: {default: ''} },
       init: function() {
-        this.canvas = document.createElement('canvas');
-        this.canvas.width = 512;
-        this.canvas.height = 256;
-        this.ctx = this.canvas.getContext('2d');
-        this.texture = new THREE.CanvasTexture(this.canvas);
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; 
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+
+        // 1. Белый фон (чтобы светился в темноте)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, 512, 256);
         
-        // Применяем текстуру к материалу объекта
-        // Ждем загрузки модели или применяем сразу если это примитив
-        this.el.addEventListener('loaded', () => {
-            const mesh = this.el.getObject3D('mesh');
-            if (mesh) {
-                mesh.material.map = this.texture;
-                mesh.material.transparent = true;
-                // Важно: material.map перезаписывает цвет, поэтому ставим белый базовый
-                mesh.material.color.setHex(0xffffff); 
-            }
+        // 2. Черная рамка
+        ctx.lineWidth = 20;
+        ctx.strokeStyle = '#000000';
+        ctx.strokeRect(0, 0, 512, 256);
+
+        // 3. Черный жирный текст
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 80px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.data.text, 256, 128);
+
+        // Создаем текстуру
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: false,
+            side: THREE.DoubleSide // Видно с двух сторон
         });
-        
-        // Если это a-plane, mesh доступен сразу
-        if (this.el.getObject3D('mesh')) {
-             this.el.getObject3D('mesh').material.map = this.texture;
-        }
 
-        this.update();
-      },
-      update: function() {
-        const ctx = this.ctx;
-        const w = 512;
-        const h = 256;
-        
-        // 1. Рисуем черный фон
-        ctx.fillStyle = "rgba(0, 0, 0, 0.9)";
-        ctx.fillRect(0, 0, w, h);
-        
-        // 2. Рисуем рамку
-        ctx.strokeStyle = this.data.color === 'yellow' ? '#FFFF00' : '#00FFFF';
-        ctx.lineWidth = 15;
-        ctx.strokeRect(0, 0, w, h);
-
-        // 3. Рисуем Текст (Используем стандартный шрифт браузера Arial)
-        ctx.fillStyle = this.data.color === 'yellow' ? '#FFFF00' : '#00FFFF';
-        ctx.font = "bold 80px Arial"; 
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(this.data.text, w/2, h/2);
-        
-        // Обновляем текстуру в 3D мире
-        this.texture.needsUpdate = true;
+        // Применяем к объекту
+        this.el.getObject3D('mesh').material = material;
       }
     });
 
-    // --- ДВИЖЕНИЕ ---
-    AFRAME.registerComponent('ufo-movement', {
+    // --- ДВИЖЕНИЕ ТАРЕЛКИ ---
+    AFRAME.registerComponent('ufo-move', {
       schema: { offset: {default: 0}, speed: {default: 1} },
       init: function() { this.angle = this.data.offset; },
       tick: function(time, timeDelta) {
         if (!this.el.object3D.visible) return;
         this.angle += 0.0003 * this.data.speed * timeDelta;
-        const r = 9; 
+        const r = 8;
         const x = Math.cos(this.angle) * r;
         const z = Math.sin(this.angle) * r;
         const y = Math.sin(time * 0.001 + this.data.offset) * 2 + 3;
@@ -169,10 +142,10 @@
 
         this.createStars();
         this.loadLevel(0);
-        document.addEventListener('mousedown', () => this.fireVisuals());
+        document.addEventListener('mousedown', () => this.fire());
       },
 
-      fireVisuals: function() {
+      fire: function() {
         playSound('shoot');
         this.weapon.setAttribute('animation', 'property: position; from: 0.5 -0.4 -0.5; to: 0.5 -0.4 -0.4; dur: 50; dir: alternate; loop: 2');
         this.laser.setAttribute('visible', true);
@@ -189,21 +162,15 @@
                this.loadLevel(this.levelIdx);
            }, 800);
         } else {
-           // Ошибка - красная вспышка на ТАБЛИЧКЕ
-           // Мы меняем компонент canvas-label, чтобы перерисовать рамку в красный
-           const label = parentEl.querySelector('.answer-label');
-           label.setAttribute('canvas-label', 'color: red; text: НЕВЕРНО');
-           setTimeout(() => {
-               // Возвращаем текст как был (нам нужно достать его из levels, но для простоты просто вернем желтый)
-               // В идеале тут надо хранить исходный текст, но для эффекта достаточно сбросить цвет
-               const originalText = parentEl.getAttribute('data-text'); 
-               label.setAttribute('canvas-label', `color: yellow; text: ${originalText}`);
-           }, 500);
+           // При ошибке - красная вспышка модели
+           const model = parentEl.querySelector('.ufo-model');
+           model.setAttribute('material', 'color: red');
+           setTimeout(() => model.setAttribute('material', 'color: #999'), 200);
         }
       },
 
       createExplosion: function(pos) {
-          for(let i=0; i<15; i++) {
+          for(let i=0; i<10; i++) {
               const p = document.createElement('a-sphere');
               p.setAttribute('radius', 0.2);
               p.setAttribute('color', 'orange');
@@ -228,10 +195,9 @@
         data.a.forEach((ans, i) => {
             const el = document.createElement('a-entity');
             el.setAttribute('look-at', '[camera]'); 
-            el.setAttribute('ufo-movement', `offset: ${i * 2}; speed: ${0.8 + Math.random() * 0.5}`);
-            el.setAttribute('data-text', ans.t); // Сохраняем текст для возврата после ошибки
+            el.setAttribute('ufo-move', `offset: ${i * 2}; speed: ${0.8 + Math.random() * 0.5}`);
 
-            // 1. ХИТБОКС (Невидимый пузырь)
+            // 1. ХИТБОКС (НЕВИДИМЫЙ, БОЛЬШОЙ)
             const hitbox = document.createElement('a-sphere');
             hitbox.setAttribute('class', 'clickable');
             hitbox.setAttribute('radius', '3.5');
@@ -244,28 +210,24 @@
 
             // 2. МОДЕЛЬ НЛО
             const visual = document.createElement('a-entity');
+            visual.setAttribute('class', 'ufo-model'); // класс для смены цвета
             visual.innerHTML = `
-                <a-cone radius-bottom="1.5" radius-top="0.5" height="0.5" color="#555"></a-cone>
-                <a-ring radius-inner="1.5" radius-outer="1.8" color="${ans.c ? '#00ffff' : '#ff00ff'}" rotation="-90 0 0" material="side: double"></a-ring>
-                <a-sphere position="0 0.3 0" radius="0.8" color="#333" opacity="0.9"></a-sphere>
+                <a-cone radius-bottom="1.5" radius-top="0.5" height="0.5" color="#999"></a-cone>
+                <a-ring radius-inner="1.5" radius-outer="1.8" color="${ans.c ? 'cyan' : 'magenta'}" rotation="-90 0 0" material="side: double"></a-ring>
+                <a-sphere position="0 0.3 0" radius="0.8" color="#333"></a-sphere>
             `;
-            visual.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 3000; easing: linear');
+            visual.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear');
             el.appendChild(visual);
 
-            // =========================================================
-            // 3. ОТВЕТ (НОВЫЙ ПОДХОД - CANVAS LABEL)
-            // =========================================================
-            // Мы используем простую плоскость, на которую JS рисует текст
+            // 3. ОТВЕТ-ТАБЛИЧКА (ИСПОЛЬЗУЕМ НАШ НОВЫЙ КОМПОНЕНТ)
             const label = document.createElement('a-plane');
-            label.setAttribute('class', 'answer-label');
-            label.setAttribute('position', '0 3 0');
+            label.setAttribute('position', '0 2.5 0'); 
             label.setAttribute('width', '5');
             label.setAttribute('height', '2.5');
-            // Вот здесь происходит магия отрисовки:
-            label.setAttribute('canvas-label', `text: ${ans.t}; color: yellow`);
-            label.setAttribute('material', 'transparent: true; side: double'); // Важно для прозрачности фона канваса
-            
+            // Здесь передаем текст
+            label.setAttribute('text-texture', `text: ${ans.t}`);
             el.appendChild(label);
+
             this.container.appendChild(el);
         });
       },
@@ -276,7 +238,7 @@
               const star = document.createElement('a-sphere');
               star.setAttribute('position', `${(Math.random()-0.5)*100} ${(Math.random()-0.5)*100} ${(Math.random()-0.5)*100}`);
               star.setAttribute('radius', Math.random()*0.2);
-              star.setAttribute('color', '#ffffff');
+              star.setAttribute('color', 'white');
               star.setAttribute('shader', 'flat');
               s.appendChild(star);
           }
@@ -289,7 +251,6 @@
   <div id="hud">
     <div id="q-box"><div class="q-text">Загрузка...</div></div>
     <div id="crosshair"></div>
-    <div class="hint">НАЖМИ НА ЭКРАН! (Русский текст теперь работает)</div>
     <div id="win-screen">
       <h1>ПОБЕДА!</h1>
       <button onclick="location.reload()" style="padding:20px; font-size:24px; cursor:pointer;">ИГРАТЬ СНОВА</button>
@@ -310,7 +271,7 @@
 
     <a-entity id="ufo-container"></a-entity>
     <a-light type="ambient" color="#FFF"></a-light>
-    <a-light type="directional" intensity="0.8" position="-1 2 1"></a-light>
+    <a-light type="directional" intensity="1" position="-1 2 1"></a-light>
   </a-scene>
 </body>
 </html>
