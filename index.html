@@ -2,13 +2,14 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>Space Shooter: Final Polish</title>
+  <title>Space Shooter: High Visibility</title>
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 
   <style>
     body { margin: 0; overflow: hidden; user-select: none; }
     
+    /* ИНТЕРФЕЙС */
     #hud {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       pointer-events: none; z-index: 10;
@@ -16,35 +17,37 @@
     #q-box {
       position: absolute; top: 30px; width: 100%; text-align: center;
     }
+    /* Стиль вопроса */
     .q-text {
-      background: rgba(0, 0, 0, 0.8);
-      border: 3px solid #00ff00;
+      background: rgba(0, 20, 50, 0.9); /* Темно-синий фон */
+      border: 3px solid #00ffff; /* Голубая рамка */
       border-radius: 15px;
       padding: 15px 40px;
-      color: #fff;
+      color: #00ffff; /* Голубой текст */
       font-family: monospace;
       font-size: 32px;
       font-weight: bold;
       display: inline-block;
-      box-shadow: 0 0 20px #00ff00;
+      box-shadow: 0 0 25px #00ffff; /* Яркое свечение */
+      text-shadow: 0 0 5px #00ffff;
     }
     #crosshair {
       position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
       transform: translate(-50%, -50%);
-      background: rgba(255, 0, 0, 0.3);
+      background: rgba(255, 255, 255, 0.3);
       border-radius: 50%;
       border: 2px solid white;
       transition: transform 0.1s;
     }
     /* Стиль прицела при наведении */
     .crosshair-active {
-        transform: translate(-50%, -50%) scale(2.5) !important;
-        background: rgba(0, 255, 0, 0.4) !important;
+        transform: translate(-50%, -50%) scale(3) !important;
+        background: rgba(0, 255, 0, 0.5) !important;
         border-color: #00ff00 !important;
     }
     .hint {
         position: absolute; bottom: 10%; width: 100%; text-align: center; 
-        color: white; font-family: sans-serif; opacity: 0.6;
+        color: white; font-family: sans-serif; opacity: 0.8; font-weight: bold;
     }
     #win-screen {
       display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -54,11 +57,11 @@
   </style>
 
   <script>
-    // --- УРОВНИ ---
+    // --- УРОВНИ (Примеры заданий) ---
     const levels = [
-      { q: "2 + 2 = ?", a: [ {t:"4", c:true}, {t:"5", c:false}, {t:"0", c:false} ] },
-      { q: "10 - 3 = ?", a: [ {t:"7", c:true}, {t:"6", c:false}, {t:"1", c:false} ] },
-      { q: "ДА ИЛИ НЕТ?", a: [ {t:"ДА", c:true}, {t:"НЕТ", c:false}, {t:"НЕТ", c:false} ] }
+      { q: "2 + 2 = ?", a: [ {t:"4", c:true}, {t:"5", c:false}, {t:"8", c:false} ] },
+      { q: "Столица РФ?", a: [ {t:"Москва", c:true}, {t:"Казань", c:false}, {t:"Сочи", c:false} ] },
+      { q: "Земля круглая?", a: [ {t:"Да", c:true}, {t:"Нет", c:false}, {t:"Плоская", c:false} ] }
     ];
 
     // --- АУДИО ---
@@ -88,26 +91,16 @@
 
     // --- КОМПОНЕНТ ДВИЖЕНИЯ (ОРБИТА) ---
     AFRAME.registerComponent('ufo-movement', {
-      schema: {
-        offset: {default: 0},
-        speed: {default: 1}
-      },
-      init: function() {
-        this.angle = this.data.offset;
-      },
+      schema: { offset: {default: 0}, speed: {default: 1} },
+      init: function() { this.angle = this.data.offset; },
       tick: function(time, timeDelta) {
         if (!this.el.object3D.visible) return;
-
-        // 1. Вращение по кругу (Орбита)
+        // Вращение по орбите и качание вверх-вниз
         this.angle += 0.0003 * this.data.speed * timeDelta;
-        
-        const r = 9; // Радиус круга (дальность)
+        const r = 9; 
         const x = Math.cos(this.angle) * r;
         const z = Math.sin(this.angle) * r;
-        
-        // 2. Качание вверх-вниз
         const y = Math.sin(time * 0.001 + this.data.offset) * 2 + 3;
-
         this.el.setAttribute('position', {x, y, z});
       }
     });
@@ -130,9 +123,7 @@
 
       fireVisuals: function() {
         playSound('shoot');
-        // Анимация пистолета
         this.weapon.setAttribute('animation', 'property: position; from: 0.5 -0.4 -0.5; to: 0.5 -0.4 -0.4; dur: 50; dir: alternate; loop: 2');
-        // Лазер
         this.laser.setAttribute('visible', true);
         setTimeout(() => this.laser.setAttribute('visible', false), 80);
       },
@@ -141,15 +132,13 @@
         if (isCorrect) {
            playSound('hit');
            this.createExplosion(parentEl.getAttribute('position'));
-           // Удаляем
            parentEl.parentNode.removeChild(parentEl);
-           // След уровень
            setTimeout(() => {
                this.levelIdx++;
                this.loadLevel(this.levelIdx);
            }, 800);
         } else {
-           // Ошибка - красная вспышка
+           // Ошибка - красная вспышка модели
            const model = parentEl.querySelector('.visual-model');
            model.setAttribute('material', 'color: red');
            setTimeout(() => model.setAttribute('material', 'color: white'), 200);
@@ -180,23 +169,17 @@
         this.container.innerHTML = '';
 
         data.a.forEach((ans, i) => {
-            // КОНТЕЙНЕР (Летает по орбите)
             const el = document.createElement('a-entity');
-            // look-at="[camera]" заставляет ВЕСЬ контейнер (и текст, и тарелку) поворачиваться к игроку
             el.setAttribute('look-at', '[camera]'); 
-            
-            // Запускаем скрипт движения
             el.setAttribute('ufo-movement', `offset: ${i * 2}; speed: ${0.8 + Math.random() * 0.5}`);
 
-            // 1. ХИТБОКС (Прозрачный пузырь)
+            // 1. НЕВИДИМЫЙ ХИТБОКС (Огромный пузырь)
             const hitbox = document.createElement('a-sphere');
-            hitbox.setAttribute('class', 'clickable'); // Класс для луча
-            hitbox.setAttribute('radius', '3'); // ОГРОМНЫЙ
-            // opacity: 0 делает его невидимым, но он все еще там
+            hitbox.setAttribute('class', 'clickable');
+            hitbox.setAttribute('radius', '3.5'); // Еще больше радиус
             hitbox.setAttribute('material', 'opacity: 0; transparent: true; side: double');
             
             hitbox.addEventListener('click', () => this.onHit(ans.c, el));
-            // Увеличиваем прицел при наведении
             hitbox.addEventListener('mouseenter', () => document.getElementById('crosshair').classList.add('crosshair-active'));
             hitbox.addEventListener('mouseleave', () => document.getElementById('crosshair').classList.remove('crosshair-active'));
             
@@ -204,39 +187,42 @@
 
             // 2. ВИЗУАЛ ТАРЕЛКИ
             const visual = document.createElement('a-entity');
-            visual.setAttribute('class', 'visual-model'); // Метка для цвета ошибки
+            visual.setAttribute('class', 'visual-model');
             visual.innerHTML = `
                 <a-cone radius-bottom="1.5" radius-top="0.5" height="0.5" color="#777"></a-cone>
-                <a-ring radius-inner="1.5" radius-outer="1.8" color="${ans.c ? '#00ffff' : '#ff00ff'}" rotation="-90 0 0" material="side: double"></a-ring>
+                <a-ring radius-inner="1.5" radius-outer="1.8" color="${ans.c ? '#00ffff' : '#ff00ff'}" rotation="-90 0 0" material="side: double; emissive: ${ans.c ? '#00ffff' : '#ff00ff'}; emissiveIntensity: 0.5"></a-ring>
                 <a-sphere position="0 0.3 0" radius="0.8" color="#333" opacity="0.9"></a-sphere>
             `;
-            // Вращение самой модельки внутри контейнера
             visual.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 3000; easing: linear');
             el.appendChild(visual);
 
-            // 3. ТЕКСТ (С фоном)
+            // ==================================================
+            // 3. ТЕКСТ ОТВЕТА (ИСПРАВЛЕНО: ЯРКАЯ ПАНЕЛЬ)
+            // ==================================================
             const textGroup = document.createElement('a-entity');
-            textGroup.setAttribute('position', '0 2.2 0'); // Высоко над тарелкой
+            textGroup.setAttribute('position', '0 2.5 0'); // Высоко над тарелкой
             
-            // Сами буквы
-            const text = document.createElement('a-text');
-            text.setAttribute('value', ans.t);
-            text.setAttribute('align', 'center');
-            text.setAttribute('scale', '7 7 7'); // Очень крупно
-            text.setAttribute('color', '#fff');
-            text.setAttribute('side', 'double'); // Видно с двух сторон
-            textGroup.appendChild(text);
-            
-            // Черная подложка под текст (чтобы не сливалось со звездами)
+            // Яркая синяя светящаяся панель позади текста
             const bg = document.createElement('a-plane');
-            bg.setAttribute('color', 'black');
-            bg.setAttribute('opacity', '0.7');
-            bg.setAttribute('width', '4');
-            bg.setAttribute('height', '1.5');
+            // color: синий, emissive: свечение, opacity: полупрозрачность
+            bg.setAttribute('material', 'color: #0077ff; opacity: 0.8; transparent: true; side: double; emissive: #0077ff; emissiveIntensity: 0.6');
+            bg.setAttribute('width', '5');
+            bg.setAttribute('height', '2');
             bg.setAttribute('position', '0 0 -0.1');
             textGroup.appendChild(bg);
 
+            // Белый жирный текст
+            const text = document.createElement('a-text');
+            text.setAttribute('value', ans.t);
+            text.setAttribute('align', 'center');
+            text.setAttribute('scale', '8 8 8'); // Крупно
+            text.setAttribute('color', '#ffffff'); // Белый цвет
+            text.setAttribute('font', 'roboto'); // Четкий шрифт
+            text.setAttribute('side', 'double');
+            textGroup.appendChild(text);
+
             el.appendChild(textGroup);
+            // ==================================================
 
             this.container.appendChild(el);
         });
@@ -244,11 +230,11 @@
 
       createStars: function() {
           const s = document.getElementById('stars');
-          for(let i=0; i<300; i++) {
+          for(let i=0; i<400; i++) {
               const star = document.createElement('a-sphere');
               star.setAttribute('position', `${(Math.random()-0.5)*100} ${(Math.random()-0.5)*100} ${(Math.random()-0.5)*100}`);
               star.setAttribute('radius', Math.random()*0.2);
-              star.setAttribute('color', 'white');
+              star.setAttribute('color', '#ffffff');
               star.setAttribute('shader', 'flat');
               s.appendChild(star);
           }
@@ -261,21 +247,21 @@
   <div id="hud">
     <div id="q-box"><div class="q-text">Загрузка...</div></div>
     <div id="crosshair"></div>
-    <div class="hint">КЛИКНИ ПО ЭКРАНУ!</div>
+    <div class="hint">КЛИКНИ ПО ЭКРАНУ ДЛЯ ЗАХВАТА ЦЕЛИ!</div>
     <div id="win-screen">
       <h1>ПОБЕДА!</h1>
       <button onclick="location.reload()" style="padding:20px; font-size:24px; cursor:pointer;">ИГРАТЬ СНОВА</button>
     </div>
   </div>
 
-  <a-scene background="color: #050510">
+  <a-scene background="color: #02020a" fog="type: exponential; color: #02020a; density: 0.02">
     <a-entity game-manager></a-entity>
     <a-entity id="stars"></a-entity>
 
     <a-camera look-controls="pointerLockEnabled: true">
         <a-entity id="weapon" position="0.5 -0.4 -0.5">
             <a-box width="0.1" height="0.1" depth="0.5" color="#444"></a-box>
-            <a-cylinder id="laser" visible="false" position="0 0 -10" rotation="90 0 0" radius="0.02" height="20" color="red" opacity="0.8"></a-cylinder>
+            <a-cylinder id="laser" visible="false" position="0 0 -10" rotation="90 0 0" radius="0.03" height="20" color="#00ffff" opacity="0.8" material="emissive: #00ffff"></a-cylinder>
         </a-entity>
 
         <a-cursor 
@@ -287,8 +273,8 @@
     </a-camera>
 
     <a-entity id="ufo-container"></a-entity>
-    <a-light type="ambient" color="#666"></a-light>
-    <a-light type="point" intensity="1" position="-2 4 4"></a-light>
+    <a-light type="ambient" color="#888"></a-light>
+    <a-light type="directional" intensity="0.8" position="-1 2 1" color="#ffffff"></a-light>
   </a-scene>
 </body>
 </html>
