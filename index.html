@@ -2,83 +2,82 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>FPS Math Shooter</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+  <title>Math Shooter Final</title>
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 
   <style>
     body { margin: 0; overflow: hidden; user-select: none; }
     
-    /* Интерфейс */
+    /* ИНТЕРФЕЙС */
     #hud {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       pointer-events: none; z-index: 10;
     }
     #question-box {
-      position: absolute; top: 20px; width: 100%; text-align: center;
+      position: absolute; top: 30px; width: 100%; text-align: center;
     }
-    .q-inner {
-      background: rgba(0, 0, 0, 0.7);
-      border: 2px solid lime;
-      border-radius: 8px;
-      padding: 15px 30px;
-      display: inline-block;
-      color: white;
+    .q-text {
+      background: rgba(0, 0, 0, 0.6);
+      border: 2px solid #00ff00;
+      box-shadow: 0 0 10px #00ff00;
+      border-radius: 10px;
+      padding: 10px 30px;
+      color: #fff;
       font-family: monospace;
-      font-size: 28px;
+      font-size: 30px;
       font-weight: bold;
+      display: inline-block;
     }
-    /* Прицел в центре */
     #crosshair {
       position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
       transform: translate(-50%, -50%);
-      background: rgba(255, 0, 0, 0.5);
+      border: 2px solid rgba(0, 255, 0, 0.8);
       border-radius: 50%;
-      border: 2px solid white;
+      background: rgba(0, 255, 0, 0.2);
+    }
+    /* Подсказка внизу */
+    .hint {
+        position: absolute; bottom: 10%; width: 100%; text-align: center; color: rgba(255,255,255,0.5); font-family: sans-serif;
     }
     /* Экран победы */
     #win-screen {
       display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: black; color: lime;
-      flex-direction: column; justify-content: center; align-items: center;
-      font-family: monospace;
-      pointer-events: auto; z-index: 20;
+      background: black; flex-direction: column; justify-content: center; align-items: center;
+      color: #00ff00; font-family: monospace; pointer-events: auto;
     }
-    .start-hint {
-        position: absolute; bottom: 20%; width: 100%; text-align: center; 
-        color: white; font-family: sans-serif; opacity: 0.7; animation: blink 2s infinite;
-    }
-    @keyframes blink { 50% { opacity: 0.2; } }
   </style>
 
   <script>
-    // --- ДАННЫЕ ИГРЫ ---
-    const gameConfig = {
-      levels: [
-        {
-          question: "2 + 2 = ?",
-          targets: [
-            { text: "4", isCorrect: true }, { text: "5", isCorrect: false }, { text: "22", isCorrect: false }
-          ]
-        },
-        {
-          question: "Столица России?",
-          targets: [
-            { text: "Москва", isCorrect: true }, { text: "Омск", isCorrect: false }, { text: "Париж", isCorrect: false }
-          ]
-        },
-        {
-          question: "5 x 5 = ?",
-          targets: [
-            { text: "25", isCorrect: true }, { text: "10", isCorrect: false }, { text: "55", isCorrect: false }
-          ]
-        }
-      ]
-    };
+    // --- ДАННЫЕ УРОВНЕЙ ---
+    const levels = [
+      {
+        q: "2 + 2 = ?",
+        answers: [
+          { text: "4", correct: true },
+          { text: "5", correct: false },
+          { text: "22", correct: false }
+        ]
+      },
+      {
+        q: "10 - 3 = ?",
+        answers: [
+          { text: "7", correct: true },
+          { text: "6", correct: false },
+          { text: "13", correct: false }
+        ]
+      },
+      {
+        q: "3 x 3 = ?",
+        answers: [
+          { text: "9", correct: true },
+          { text: "6", correct: false },
+          { text: "33", correct: false }
+        ]
+      }
+    ];
 
-    // --- ЗВУКИ (Синтезатор браузера) ---
+    // --- ЗВУКИ (Синтезатор) ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(type) {
       if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -88,83 +87,157 @@
       const now = audioCtx.currentTime;
       
       if (type === 'shoot') {
-        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.setValueAtTime(600, now);
         osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
         gain.gain.setValueAtTime(0.1, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
         osc.start(now); osc.stop(now + 0.1);
-      } else if (type === 'hit') {
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(400, now);
+      } else if (type === 'win') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(400, now);
         osc.frequency.linearRampToValueAtTime(800, now + 0.1);
         gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+      } else if (type === 'error') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now);
+        gain.gain.setValueAtTime(0.2, now);
         gain.gain.linearRampToValueAtTime(0, now + 0.2);
         osc.start(now); osc.stop(now + 0.2);
       }
     }
 
-    // --- ЛОГИКА ---
+    // --- ЛОГИКА ИГРЫ ---
     AFRAME.registerComponent('game-manager', {
       init: function () {
-        this.level = 0;
+        this.currentLevel = 0;
         this.score = 0;
-        this.container = document.getElementById('targets');
-        this.qText = document.getElementById('q-text');
+        this.container = document.getElementById('targets-container');
+        this.qText = document.getElementById('question-text');
+        this.weapon = document.getElementById('weapon-model');
         
-        // Анимация выстрела пистолета
-        const weapon = document.getElementById('my-weapon');
+        // Получаем доступ к Raycaster (Лучу) внутри камеры
+        this.raycaster = document.querySelector('[raycaster]').components.raycaster;
+
+        // Генерация звезд (ФОН)
+        this.createStars();
+
+        // Обработка клика (Выстрел)
         document.addEventListener('mousedown', () => {
-            playSound('shoot');
-            weapon.setAttribute('animation', 'property: position; from: 0.3 -0.3 -0.4; to: 0.3 -0.2 -0.3; dur: 50; easing: easeOutQuad');
-            setTimeout(() => {
-                weapon.setAttribute('animation', 'property: position; to: 0.3 -0.4 -0.5; dur: 100; easing: easeOutQuad');
-            }, 50);
+          // 1. Звук и анимация оружия
+          playSound('shoot');
+          this.weapon.emit('recoil');
+
+          // 2. Проверка попадания лучом
+          // Ищем пересечения только с объектами класса .collidable
+          const intersections = this.raycaster.getIntersection(document.querySelectorAll('.collidable'));
+          
+          if (intersections.length > 0) {
+            // Берем самый первый (ближний) объект
+            const hitEl = intersections[0].object.el;
+            this.handleHit(hitEl);
+          }
         });
 
         this.loadLevel(0);
       },
 
-      loadLevel: function (index) {
-        if (index >= gameConfig.levels.length) {
-            document.getElementById('win-screen').style.display = 'flex';
-            document.getElementById('final-score').innerText = this.score;
-            document.exitPointerLock(); // Освобождаем мышь в конце
-            return;
+      createStars: function() {
+        // Создаем 500 звезд программно, чтобы не зависеть от картинок
+        const starContainer = document.getElementById('stars');
+        for(let i=0; i<500; i++) {
+            const star = document.createElement('a-sphere');
+            const x = (Math.random() - 0.5) * 200;
+            const y = (Math.random() - 0.5) * 200;
+            const z = (Math.random() - 0.5) * 200;
+            star.setAttribute('position', `${x} ${y} ${z}`);
+            star.setAttribute('radius', Math.random() * 0.2);
+            star.setAttribute('color', '#FFF');
+            star.setAttribute('shader', 'flat');
+            starContainer.appendChild(star);
         }
-        this.level = index;
-        const data = gameConfig.levels[index];
-        this.qText.innerText = data.question;
+      },
+
+      handleHit: function(el) {
+        // Проверяем, верный ли это ответ (хранится в атрибуте data-correct)
+        const isCorrect = el.getAttribute('data-correct') === 'true';
+
+        if (isCorrect) {
+          playSound('win');
+          this.score++;
+          // Удаляем тарелку визуально
+          el.setAttribute('visible', false);
+          el.classList.remove('collidable'); // Чтобы нельзя было попасть второй раз
+          
+          setTimeout(() => {
+             this.loadLevel(this.currentLevel + 1);
+          }, 500);
+        } else {
+          playSound('error');
+          // Красная вспышка
+          const mesh = el.getObject3D('mesh');
+          if(mesh) mesh.material.color.setHex(0xff0000); 
+          setTimeout(() => { 
+             if(mesh) mesh.material.color.setHex(0x333333); 
+          }, 200);
+        }
+      },
+
+      loadLevel: function (index) {
+        if (index >= levels.length) {
+           document.getElementById('win-screen').style.display = 'flex';
+           document.exitPointerLock();
+           return;
+        }
+        this.currentLevel = index;
+        const data = levels[index];
+        this.qText.innerText = data.q;
         this.container.innerHTML = '';
 
-        const positions = ["-4 2 -6", "0 3 -8", "4 2 -6"]; // Позиции тарелок
+        const positions = [
+            {pos: "-4 2 -8", anim: "to: -4 3 -8"},
+            {pos: "0 4 -10", anim: "to: 0 2 -10"}, 
+            {pos: "4 2 -8", anim: "to: 4 3 -8"}
+        ];
 
-        data.targets.forEach((target, i) => {
+        data.answers.forEach((ans, i) => {
+          // Создаем группу (контейнер для тарелки и текста)
           const el = document.createElement('a-entity');
-          el.setAttribute('position', positions[i] || "0 0 -5");
-          el.setAttribute('look-at', '[camera]');
-          el.setAttribute('class', 'clickable'); // ВАЖНО для луча
+          el.setAttribute('position', positions[i].pos);
+          el.setAttribute('look-at', '[camera]'); // Всегда смотрит на игрока
+          
+          // ВАЖНО: Класс для луча и данные о правильности
+          el.setAttribute('class', 'collidable'); 
+          el.setAttribute('data-correct', ans.correct);
 
-          // Модель тарелки (Конус + Сфера)
-          const ufoColor = target.isCorrect ? '#222' : '#222'; // Одинаковый цвет, чтобы не палить ответ
-          el.innerHTML = `
-            <a-cone radius-bottom="1.5" radius-top="0.5" height="0.5" color="#555"></a-cone>
-            <a-sphere position="0 0.3 0" radius="0.7" color="${ufoColor}" opacity="0.9"></a-sphere>
-            <a-text value="${target.text}" align="center" position="0 1.5 0" scale="4 4 4" color="#00ff00"></a-text>
-            <a-plane position="0 1.5 -0.1" width="3" height="1.2" color="black" opacity="0.6"></a-plane>
+          // АНИМАЦИЯ (Движение вверх-вниз)
+          el.setAttribute('animation', `property: position; dir: alternate; dur: 2000; easing: easeInOutSine; loop: true; to: ${positions[i].anim}`);
+
+          // МОДЕЛЬ ТАРЕЛКИ (Геометрия внутри кода)
+          // Мы используем entity внутри entity, чтобы вращение модели не мешало тексту
+          const model = document.createElement('a-entity');
+          model.innerHTML = `
+            <a-cone radius-bottom="1.2" radius-top="0.5" height="0.5" color="#333"></a-cone>
+            <a-sphere position="0 0.2 0" radius="0.6" color="#555" opacity="0.8"></a-sphere>
+            <a-ring radius-inner="1.3" radius-outer="1.5" color="#00ff00" rotation="-90 0 0"></a-ring>
           `;
+          // Вращение самой тарелки
+          model.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear');
+          el.appendChild(model);
 
-          // Обработка клика
-          el.addEventListener('click', () => {
-            if (target.isCorrect) {
-               playSound('hit');
-               this.score++;
-               el.setAttribute('visible', 'false'); // Скрываем сбитую
-               setTimeout(() => this.loadLevel(this.level + 1), 500);
-            } else {
-               // Звук ошибки можно добавить
-               el.querySelector('a-sphere').setAttribute('color', 'red');
-            }
-          });
+          // ТЕКСТ ОТВЕТА
+          const text = document.createElement('a-text');
+          text.setAttribute('value', ans.text);
+          text.setAttribute('align', 'center');
+          text.setAttribute('position', '0 1.2 0');
+          text.setAttribute('scale', '4 4 4');
+          text.setAttribute('color', '#00ff00');
+          el.appendChild(text);
+
+          // Столкновитель (Невидимая сфера вокруг объекта, чтобы легче попадать)
+          const collider = document.createElement('a-sphere');
+          collider.setAttribute('radius', '1.5');
+          collider.setAttribute('visible', 'false'); // Невидим, но луч его ловит
+          el.appendChild(collider);
 
           this.container.appendChild(el);
         });
@@ -175,40 +248,35 @@
 <body>
 
   <div id="hud">
-    <div id="question-box"><div class="q-inner" id="q-text">Загрузка...</div></div>
+    <div id="question-box"><div class="q-text" id="question-text">Загрузка...</div></div>
     <div id="crosshair"></div>
-    <div class="start-hint">КЛИКНИ ПО ЭКРАНУ ЧТОБЫ НАЧАТЬ</div>
+    <div class="hint">Нажми на экран для захвата мыши | ESC для выхода</div>
+    
     <div id="win-screen">
       <h1>ПОБЕДА!</h1>
-      <h2>СЧЕТ: <span id="final-score">0</span></h2>
-      <button onclick="location.reload()" style="padding: 20px; font-size: 20px; cursor: pointer;">ИГРАТЬ СНОВА</button>
+      <button onclick="location.reload()" style="padding: 15px; background: #00ff00; border: none; cursor: pointer;">ЗАНОВО</button>
     </div>
   </div>
 
-  <a-scene loading-screen="dotsColor: lime; backgroundColor: black">
-    <a-assets></a-assets>
-
-    <a-entity game-manager></a-entity>
+  <a-scene background="color: #000005"> <a-entity game-manager></a-entity>
+    
+    <a-entity id="stars"></a-entity>
 
     <a-camera look-controls="pointerLockEnabled: true">
         
-        <a-cursor fuse="false" raycaster="objects: .clickable" opacity="0" position="0 0 -1"></a-cursor>
-
-        <a-entity id="my-weapon" position="0.3 -0.4 -0.5">
-            <a-box depth="0.8" height="0.1" width="0.1" color="#333" position="0 0 -0.2"></a-box>
-            <a-box depth="0.4" height="0.2" width="0.15" color="#555" position="0 -0.05 0.1"></a-box>
-            <a-box depth="0.1" height="0.12" width="0.12" color="#000" position="0 0 -0.6"></a-box>
-            <a-cylinder height="0.8" radius="0.01" color="red" position="0.06 0.05 -0.2" rotation="90 0 0" opacity="0.6"></a-cylinder>
+        <a-entity id="weapon-model" position="0.3 -0.3 -0.5">
+            <a-box color="#444" width="0.1" height="0.1" depth="0.6"></a-box>
+            <a-box color="#222" width="0.12" height="0.2" depth="0.15" position="0 -0.1 0.2"></a-box>
+            <a-animation attribute="position" begin="recoil" from="0.3 -0.3 -0.4" to="0.3 -0.3 -0.5" dur="100"></a-animation>
         </a-entity>
 
+        <a-entity raycaster="objects: .collidable; far: 100" position="0 0 -1"></a-entity>
+        
     </a-camera>
 
-    <a-entity id="targets"></a-entity>
+    <a-entity id="targets-container"></a-entity>
 
-    <a-sky color="#050510"></a-sky>
-    <a-entity position="0 0 0" particle-system="preset: snow; color: #FFF; count: 4000; size: 0.5"></a-entity>
-
-    <a-light type="ambient" color="#444"></a-light>
+    <a-light type="ambient" color="#666"></a-light>
     <a-light type="point" intensity="1" position="-2 4 4"></a-light>
 
   </a-scene>
