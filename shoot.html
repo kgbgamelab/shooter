@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Space Math Shooter 360 Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+
+  <style>
+    /* --- Интерфейс (HUD) поверх 3D сцены --- */
+    body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; }
+    #hud-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; /* Чтобы клики проходили сквозь интерфейс в 3D сцену */
+      z-index: 10;
+    }
+    
+    /* Верхняя панель с вопросом */
+    #question-panel {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(0, 20, 60, 0.85); color: #00ddd0;
+      padding: 15px 30px; border-radius: 10px; border: 2px solid #00ddd0;
+      text-align: center; max-width: 80%;
+      box-shadow: 0 0 15px #00ddd0;
+      font-size: 1.2em;
+    }
+    #question-content img { max-height: 150px; margin-top: 10px; }
+
+    /* Оружие (рука с пистолетом) */
+    #weapon-overlay {
+      position: absolute; bottom: 0; right: 20%;
+      width: 300px; height: auto;
+      pointer-events: none;
+      transform-origin: center bottom;
+      /* Пример картинки пистолета из интернета */
+      background-image: url('https://cdn.pixabay.com/photo/2017/01/31/15/27/sci-fi-2025179_960_720.png');
+      background-size: contain; background-repeat: no-repeat; background-position: bottom center;
+      height: 400px;
+    }
+    /* Анимация отдачи */
+    .recoil { animation: recoilAnim 0.15s ease-out; }
+    @keyframes recoilAnim {
+      0% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(20px) scale(1.05); }
+      100% { transform: translateY(0) scale(1); }
+    }
+
+    /* Прицел в центре */
+    #crosshair {
+      position: absolute; top: 50%; left: 50%;
+      width: 40px; height: 40px;
+      transform: translate(-50%, -50%);
+      border: 2px solid rgba(255, 50, 50, 0.7); border-radius: 50%;
+    }
+    #crosshair::after {
+      content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
+      background: red; transform: translate(-50%, -50%); border-radius: 50%;
+    }
+
+    /* Экран победы/поражения */
+    #end-screen {
+      display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.9); color: white; z-index: 20;
+      flex-direction: column; justify-content: center; align-items: center; pointer-events: auto;
+    }
+    #end-screen h1 { font-size: 3em; color: #00ddd0; }
+  </style>
+
+  <script>
+    /**
+     * ==========================================
+     * КОНФИГУРАЦИЯ ИГРЫ (То, что будет менять Редактор)
+     * ==========================================
+     */
+    const gameState = {
+      // Глубокий космос фон (можно заменить на любую панораму 360)
+      backgroundURL: "https://cdn.ESO.org/images/large/eso0932a.jpg", 
+      currentQuestionIndex: 0,
+      score: 0,
+      questions: [
+        // --- ВОПРОС 1: Текстовый вопрос, ответы-формулы ---
+        {
+          type: 'text', // 'text', 'image', 'formula'
+          content: 'Чему равен определитель матрицы 2x2, если ad - bc = 10?',
+          targets: [
+            { type: 'formula', content: '\\Delta = 10', isCorrect: true },
+            { type: 'formula', content: '\\Delta = 0', isCorrect: false },
+            { type: 'text', content: 'Невозможно определить', isCorrect: false }
+          ]
+        },
+        // --- ВОПРОС 2: Вопрос-картинка, ответы-текст ---
+        {
+          type: 'image',
+          // Пример картинки с задачей по геометрии
+          content: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Pythagorean.svg/300px-Pythagorean.svg.png',
+          textHint: 'Какая теорема изображена?', // Доп. текст под картинкой
+          targets: [
+            { type: 'text', content: 'Теорема Виета', isCorrect: false },
+            { type: 'text', content: 'Теорема Пифагора', isCorrect: true },
+            { type: 'text', content: 'Закон Ома', isCorrect: false }
+          ]
+        },
+         // --- ВОПРОС 3: Вопрос-формула, ответы-картинки ---
+         {
+          type: 'formula',
+          content: 'E = mc^2',
+          textHint: 'С чем ассоциируется эта формула?',
+          targets: [
+            // Картинка Эйнштейна
+            { type: 'image', content: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Albert_Einstein_Head.jpg/220px-Albert_Einstein_Head.jpg', isCorrect: true },
+            // Картинка Ньютона
+            { type: 'image', content: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/GodfreyKneller-IsaacNewton-1689.jpg/220px-GodfreyKneller-IsaacNewton-1689.jpg', isCorrect: false },
+             { type: 'text', content: 'Химия', isCorrect: false }
+          ]
+        }
+      ]
+    };
+
+    /**
+     * ЗВУКИ (Заглушки, в реальном проекте заменить на Base64 или URL)
+     */
+    const SOUNDS = {
+      shoot: new Audio('https://freesound.org/data/previews/156/156031_2635609-lq.mp3'), // Пример звука лазера
+      hit: new Audio('https://freesound.org/data/previews/109/109662_1417092-lq.mp3'), // Пример взрыва
+      error: new Audio('https://freesound.org/data/previews/142/142608_2494316-lq.mp3') // Пример ошибки
+    };
+    SOUNDS.shoot.volume = 0.3; SOUNDS.hit.volume = 0.5; SOUNDS.error.volume = 0.5;
+
+    /**
+     * ==========================================
+     * КОМПОНЕНТЫ A-FRAME (Движок игры)
+     * ==========================================
+     */
+
+    // --- 1. Компонент рендеринга математики на текстуру ---
+    AFRAME.registerComponent('math-renderer', {
+      schema: {
+        latex: {type: 'string', default: ''},
+        color: {type: 'color', default: 'white'},
+        bgColor: {type: 'color', default: '#00143C'}
+      },
+      init: function () {
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = 512; this.canvas.height = 256; // Высокое разрешение для четкости
+        this.ctx = this.canvas.getContext('2d');
+        this.texture = new THREE.CanvasTexture(this.canvas);
+        if (this.el.getObject3D('mesh')) {
+           this.el.getObject3D('mesh').material.map = this.texture;
+        } else {
+          this.el.addEventListener('model-loaded', () => {
+             // Если модель еще не загрузилась (например, GLTF UFO)
+             const mesh = this.el.getObject3D('mesh');
+             if (mesh) mesh.traverse(node => { if (node.isMesh) node.material.map = this.texture; });
+          });
+        }
+        this.renderMath();
+      },
+      update: function () { this.renderMath(); },
+      renderMath: function () {
+        // Заливаем фон
+        this.ctx.fillStyle = this.data.bgColor;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Рисуем текст с помощью KaTeX на временный DOM элемент, потом переносим на canvas
+        const tempDiv = document.createElement('div');
+        tempDiv.style.position = 'absolute'; tempDiv.style.left = '-9999px';
+        tempDiv.style.color = this.data.color; tempDiv.style.fontSize = '40px'; // Крупный шрифт
+        document.body.appendChild(tempDiv);
+        
+        try {
+            katex.render(this.data.latex, tempDiv, { throwOnError: false, displayMode: true });
+            // Хак: ждем рендеринга и рисуем на канвас (в реальном проекте лучше использовать html2canvas)
+            // Для упрощения примера рисуем простой текст, если KaTeX сложен для canvas напрямую без доп библиотек
+            this.ctx.fillStyle = this.data.color;
+            this.ctx.font = "bold 30px Arial";
+            this.ctx.textAlign = "center";
+            this.ctx.textBaseline = "middle";
+            // Простая эмуляция для примера. В продакшене нужен html2canvas для сложного KaTeX
+            this.ctx.fillText(this.data.latex.includes('\\') ? "[Формула]" : this.data.latex, this.canvas.width/2, this.canvas.height/2); 
+        } catch(e) { console.error(e); }
+        
+        document.body.removeChild(tempDiv);
+        this.texture.needsUpdate = true;
+      }
+    });
+
+
+    // --- 2. Компонент поведения НЛО ---
+    AFRAME.registerComponent('ufo-behavior', {
+      schema: {
+        isCorrect: {type: 'boolean', default: false},
+        speed: {type: 'number', default: 1}
+      },
+      init: function () {
+        // Слушаем событие попадания (генерируется оружием)
+        this.el.addEventListener('hit', this.onHit.bind(this));
+        // Данные для анимации движения
+        this.timeOffset = Math.random() * 100;
+        this.initialPos = { ...this.el.getAttribute('position') };
+      },
+      tick: function (time, timeDelta) {
+        // Движение по синусоиде (левитация)
+        const t = time * 0.001 * this.data.speed + this.timeOffset;
+        const newX = this.initialPos.x + Math.sin(t) * 2;
+        const newY = this.initialPos.y + Math.cos(t * 1.5) * 1.5;
+        this.el.setAttribute('position', {x: newX, y: newY, z: this.initialPos.z});
+        this.el.object3D.rotation.y += 0.01; // Вращение вокруг оси
+      },
+      onHit: function () {
+        if (this.data.isCorrect) {
+          SOUNDS.hit.currentTime = 0; SOUNDS.hit.play();
+          // Эффект "взрыва" - быстрое уменьшение
+          this.el.setAttribute('animation', {
+            property: 'scale', to: '0 0 0', dur: 200, easing: 'easeInQuad'
+          });
+          // Сообщаем менеджеру игры о победе
+          this.el.sceneEl.emit('correct-answer');
+        } else {
+          SOUNDS.error.currentTime = 0; SOUNDS.error.play();
+          // Визуальная индикация ошибки (красная вспышка)
+          const oldColor = this.el.getAttribute('material').color;
+          this.el.setAttribute('material', 'color', '#FF0000');
+          setTimeout(() => {
+             if (this.el.parentNode) this.el.setAttribute('material', 'color', oldColor);
+          }, 500);
+        }
+      }
+    });
+
+
+    // --- 3. Компонент управления оружием ---
+    AFRAME.registerComponent('weapon-controller', {
+      init: function () {
+        this.weaponOverlay = document.getElementById('weapon-overlay');
+        // Raycaster встроен в камеру в HTML. Получаем доступ к нему.
+        this.raycasterEl = this.el; 
+        
+        // Слушаем клик по сцене (выстрел)
+        this.el.sceneEl.canvas.addEventListener('mousedown', this.shoot.bind(this));
+        this.el.sceneEl.canvas.addEventListener('touchstart', this.shoot.bind(this), {passive: true});
+      },
+      shoot: function () {
+        SOUNDS.shoot.currentTime = 0; SOUNDS.shoot.play();
+
+        // Анимация отдачи 2D картинки
+        this.weaponOverlay.classList.remove('recoil');
+        void this.weaponOverlay.offsetWidth; // Триггер перерисовки
+        this.weaponOverlay.classList.add('recoil');
+
+        // Проверка пересечений луча
+        const raycaster = this.raycasterEl.components.raycaster;
+        const intersections = raycaster.getIntersection(document.querySelectorAll('.clickable'));
+        
+        if (intersections.length > 0) {
+          // Нашли ближайший объект, в который попали
+          const hitEl = intersections[0].object.el;
+          // Отправляем ему событие 'hit'
+          hitEl.emit('hit');
+        }
+      }
+    });
+
+
+    // --- 4. Главный менеджер игры (Game Manager) ---
+    AFRAME.registerComponent('game-manager', {
+      init: function () {
+        this.questionPanel = document.getElementById('question-content');
+        this.targetsContainer = document.getElementById('targets-container');
+        this.sky = document.getElementById('sky-bg');
+        this.endScreen = document.getElementById('end-screen');
+        this.finalScoreSpan = document.getElementById('final-score');
+
+        // Установка фона из конфига
+        this.sky.setAttribute('src', gameState.backgroundURL);
+
+        // Слушаем событие правильного ответа
+        this.el.sceneEl.addEventListener('correct-answer', () => {
+          gameState.score++;
+          setTimeout(() => this.nextLevel(), 1000); // Задержка перед следующим уровнем
+        });
+
+        this.loadCurrentLevel();
+      },
+
+      nextLevel: function() {
+        gameState.currentQuestionIndex++;
+        if (gameState.currentQuestionIndex < gameState.questions.length) {
+          this.loadCurrentLevel();
+        } else {
+          this.finishGame();
+        }
+      },
+
+      loadCurrentLevel: function () {
+        // Очистка старых целей
+        this.targetsContainer.innerHTML = '';
+        
+        const currentQ = gameState.questions[gameState.currentQuestionIndex];
+        
+        // 1. Обновление HUD (Вопрос)
+        let questionHTML = '';
+        if (currentQ.type === 'text') questionHTML = `<span>${currentQ.content}</span>`;
+        else if (currentQ.type === 'image') questionHTML = `<img src="${currentQ.content}"><br><span>${currentQ.textHint || ''}</span>`;
+        else if (currentQ.type === 'formula') {
+          questionHTML = `<span id="katex-q-target"></span><br><span>${currentQ.textHint || ''}</span>`;
+          // Рендерим KaTeX после вставки в DOM
+          setTimeout(() => katex.render(currentQ.content, document.getElementById('katex-q-target'), {throwOnError:false, displayMode:true}), 50);
+        }
+        this.questionPanel.innerHTML = questionHTML;
+
+        // 2. Генерация НЛО (Целей)
+        const positions = [
+          {x: -6, y: 2, z: -8}, {x: 0, y: 4, z: -10}, {x: 6, y: 3, z: -8}, // Позиции перед игроком
+          {x: -9, y: 5, z: 2}, {x: 9, y: 1, z: 4} // Боковые
+        ];
+        // Перемешиваем позиции
+        positions.sort(() => Math.random() - 0.5);
+
+        currentQ.targets.forEach((targetData, index) => {
+          if (index >= positions.length) return;
+
+          // Создаем группу для НЛО
+          const ufoGroup = document.createElement('a-entity');
+          ufoGroup.setAttribute('position', positions[index]);
+          ufoGroup.setAttribute('ufo-behavior', {isCorrect: targetData.isCorrect, speed: 1 + Math.random()});
+          // Класс clickable нужен для raycaster'а
+          ufoGroup.setAttribute('class', 'clickable'); 
+
+          // --- Визуальная модель тарелки (Упрощенная из примитивов) ---
+          // Основной диск
+          const saucerDisk = document.createElement('a-cylinder');
+          saucerDisk.setAttribute('radius', 1.5); saucerDisk.setAttribute('height', 0.3);
+          saucerDisk.setAttribute('material', {color: targetData.isCorrect ? '#444' : '#555', metalness: 0.8, roughness: 0.2}); // Хак для отладки - правильный ответ чуть темнее
+          ufoGroup.appendChild(saucerDisk);
+          // Купол
+          const dome = document.createElement('a-sphere');
+          dome.setAttribute('radius', 0.7); dome.setAttribute('position', '0 0.2 0');
+          dome.setAttribute('material', {color: '#00ddd0', opacity: 0.7, transparent: true, emissive: '#00ddd0', emissiveIntensity: 0.5});
+          ufoGroup.appendChild(dome);
+
+          // --- Отображение ответа на тарелке ---
+          // Создаем плоскость-"экран" перед тарелкой
+          const contentPlane = document.createElement('a-plane');
+          contentPlane.setAttribute('position', '0 -0.5 0.1'); // Чуть ниже центра и вперед
+          contentPlane.setAttribute('width', 2); contentPlane.setAttribute('height', 1);
+          contentPlane.setAttribute('transparent', true);
+
+          if (targetData.type === 'image') {
+            // Если ответ картинка - просто текстура
+            contentPlane.setAttribute('material', {src: targetData.content, transparent: true});
+          } else if (targetData.type === 'text' || targetData.type === 'formula') {
+            // Если текст или формула - используем наш сложный компонент math-renderer
+            // ВАЖНО: Для реальных формул здесь нужен полноценный html2canvas рендер.
+            // Пока что math-renderer выведет простой текст "[Формула]" для демонстрации архитектуры.
+            contentPlane.setAttribute('math-renderer', {latex: targetData.content, color: '#00ddd0', bgColor: 'rgba(0,20,60,0.8)'});
+          }
+          
+          ufoGroup.appendChild(contentPlane);
+          this.targetsContainer.appendChild(ufoGroup);
+        });
+      },
+
+      finishGame: function() {
+        this.finalScoreSpan.textContent = gameState.score + ' / ' + gameState.questions.length;
+        this.endScreen.style.display = 'flex';
+        // Отключаем управление камерой
+        this.el.sceneEl.camera.el.removeAttribute('look-controls');
+      }
+    });
+  </script>
+</head>
+
+<body>
+  <div id="hud-overlay">
+    <div id="question-panel">
+      <div id="question-content">Загрузка задания...</div>
+    </div>
+    <div id="crosshair"></div>
+    <div id="weapon-overlay"></div>
+  </div>
+
+  <div id="end-screen">
+    <h1>Миссия завершена!</h1>
+    <h2>Ваш счет: <span id="final-score">0</span></h2>
+  </div>
+
+  <a-scene vr-mode-ui="enabled: false" loading-screen="dotsColor: #00ddd0; backgroundColor: #000">
+    <a-assets>
+        </a-assets>
+
+    <a-entity game-manager></a-entity>
+
+    <a-entity position="0 1.6 0">
+      <a-camera look-controls="pointerLockEnabled: true" wasd-controls="enabled: false">
+        <a-entity weapon-controller 
+                  raycaster="objects: .clickable; far: 50; interval: 100"
+                  position="0 0 -1"
+                  cursor="fuse: false; rayOrigin: mouse;">
+        </a-entity>
+      </a-camera>
+    </a-entity>
+
+    <a-entity id="targets-container"></a-entity>
+
+    <a-entity light="type: ambient; color: #BBB"></a-entity>
+    <a-entity light="type: directional; color: #FFF; intensity: 0.6" position="-1 1 1"></a-entity>
+
+    <a-sky id="sky-bg" color="#000"></a-sky>
+  </a-scene>
+</body>
+</html>
