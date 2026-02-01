@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>Shooter: High Contrast</title>
+  <title>Shooter: Russian Fixed</title>
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 
@@ -18,11 +18,11 @@
     }
     .q-text {
       background: rgba(0, 0, 0, 0.9);
-      border: 4px solid #00ff00;
+      border: 3px solid #00ff00;
       border-radius: 10px;
       padding: 15px 40px;
-      color: #00ff00;
-      font-family: sans-serif;
+      color: #fff;
+      font-family: sans-serif; /* Простой шрифт, чтобы читал кириллицу */
       font-size: 32px;
       font-weight: bold;
       display: inline-block;
@@ -31,10 +31,9 @@
     #crosshair {
       position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
       transform: translate(-50%, -50%);
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.3);
       border-radius: 50%;
       border: 2px solid white;
-      transition: transform 0.1s;
     }
     .crosshair-active {
         transform: translate(-50%, -50%) scale(3) !important;
@@ -53,14 +52,14 @@
   </style>
 
   <script>
-    // --- УРОВНИ ---
+    // --- УРОВНИ (РУССКИЙ ЯЗЫК) ---
     const levels = [
-      { q: "2 + 2 = ?", a: [ {t:"4", c:true}, {t:"5", c:false}, {t:"8", c:false} ] },
-      { q: "10 - 7 = ?", a: [ {t:"3", c:true}, {t:"2", c:false}, {t:"10", c:false} ] },
-      { q: "ДА ИЛИ НЕТ?", a: [ {t:"ДА", c:true}, {t:"НЕТ", c:false}, {t:"НЕТ", c:false} ] }
+      { q: "Столица России?", a: [ {t:"Москва", c:true}, {t:"Омск", c:false}, {t:"Сочи", c:false} ] },
+      { q: "2 + 2 = ?", a: [ {t:"4", c:true}, {t:"5", c:false}, {t:"10", c:false} ] },
+      { q: "Земля круглая?", a: [ {t:"Да", c:true}, {t:"Нет", c:false}, {t:"Плоская", c:false} ] }
     ];
 
-    // --- АУДИО ---
+    // --- ЗВУК ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(type) {
       if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -70,7 +69,7 @@
       const now = audioCtx.currentTime;
       
       if (type === 'shoot') { 
-        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.setValueAtTime(600, now);
         osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
         gain.gain.setValueAtTime(0.1, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
@@ -78,23 +77,25 @@
       } else if (type === 'hit') {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(200, now);
-        osc.frequency.linearRampToValueAtTime(50, now + 0.4);
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.4);
-        osc.start(now); osc.stop(now + 0.4);
+        osc.frequency.linearRampToValueAtTime(50, now + 0.3);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
       }
     }
 
-    // --- КОМПОНЕНТ ДВИЖЕНИЯ ---
+    // --- ДВИЖЕНИЕ ТАРЕЛКИ ---
     AFRAME.registerComponent('ufo-movement', {
       schema: { offset: {default: 0}, speed: {default: 1} },
       init: function() { this.angle = this.data.offset; },
       tick: function(time, timeDelta) {
         if (!this.el.object3D.visible) return;
+        // Полет по кругу
         this.angle += 0.0003 * this.data.speed * timeDelta;
-        const r = 9; 
+        const r = 8; 
         const x = Math.cos(this.angle) * r;
         const z = Math.sin(this.angle) * r;
+        // Качание вверх-вниз
         const y = Math.sin(time * 0.001 + this.data.offset) * 2 + 3;
         this.el.setAttribute('position', {x, y, z});
       }
@@ -138,7 +139,7 @@
       },
 
       createExplosion: function(pos) {
-          for(let i=0; i<15; i++) {
+          for(let i=0; i<10; i++) {
               const p = document.createElement('a-sphere');
               p.setAttribute('radius', 0.2);
               p.setAttribute('color', 'orange');
@@ -162,10 +163,11 @@
 
         data.a.forEach((ans, i) => {
             const el = document.createElement('a-entity');
+            // look-at заставляет весь блок (и текст) смотреть на игрока
             el.setAttribute('look-at', '[camera]'); 
             el.setAttribute('ufo-movement', `offset: ${i * 2}; speed: ${0.8 + Math.random() * 0.5}`);
 
-            // 1. ХИТБОКС (ПУЗЫРЬ) - НЕВИДИМЫЙ
+            // 1. ХИТБОКС (НЕВИДИМЫЙ ШАР)
             const hitbox = document.createElement('a-sphere');
             hitbox.setAttribute('class', 'clickable');
             hitbox.setAttribute('radius', '3.5');
@@ -184,29 +186,32 @@
                 <a-ring radius-inner="1.5" radius-outer="1.8" color="${ans.c ? '#00ffff' : '#ff00ff'}" rotation="-90 0 0" material="side: double"></a-ring>
                 <a-sphere position="0 0.3 0" radius="0.8" color="#333" opacity="0.9"></a-sphere>
             `;
+            // Крутится только модель, текст не крутится
             visual.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 3000; easing: linear');
             el.appendChild(visual);
 
-            // 3. ОТВЕТ (ИСПРАВЛЕНО: ЖЕЛТЫЙ НА ЧЕРНОМ)
-            // Мы создаем отдельную сущность для текста, чтобы она висела над НЛО
+            // ===============================================
+            // 3. РУССКИЙ ТЕКСТ
+            // ===============================================
             const textGroup = document.createElement('a-entity');
-            textGroup.setAttribute('position', '0 3 0'); // Поднял еще выше (было 2.5)
+            textGroup.setAttribute('position', '0 3 0'); // Высоко над тарелкой
 
-            // Черный фон (плоскость)
+            // Черная подложка (Плоская, чтобы не перекрывала)
             const bg = document.createElement('a-plane');
             bg.setAttribute('color', 'black');
-            bg.setAttribute('width', '4');
+            bg.setAttribute('width', '6');
             bg.setAttribute('height', '1.5');
-            bg.setAttribute('opacity', '0.8');
+            bg.setAttribute('position', '0 0 0'); // Стоит на месте
             textGroup.appendChild(bg);
 
-            // Желтый текст
+            // Текст (Выдвинут вперед на 0.1)
             const text = document.createElement('a-text');
             text.setAttribute('value', ans.t);
+            // Если русский не отобразится, попробуйте удалить строку font ниже, но обычно дефолт работает
             text.setAttribute('align', 'center');
-            text.setAttribute('width', '15'); // Увеличил ширину шрифта (размер)
-            text.setAttribute('color', '#FFFF00'); // Ярко-желтый
-            text.setAttribute('position', '0 0 0.1'); // Чуть вперед, чтобы не сливался с фоном
+            text.setAttribute('width', '15'); // Крупный размер
+            text.setAttribute('color', '#FFFF00'); // ЖЕЛТЫЙ
+            text.setAttribute('position', '0 0 0.1'); // ВАЖНО: Впереди фона
             textGroup.appendChild(text);
 
             el.appendChild(textGroup);
@@ -233,7 +238,7 @@
   <div id="hud">
     <div id="q-box"><div class="q-text">Загрузка...</div></div>
     <div id="crosshair"></div>
-    <div class="hint">НАЖМИ НА ЭКРАН И СТРЕЛЯЙ В ЖЕЛТЫЕ ЦИФРЫ!</div>
+    <div class="hint">НАЖМИ НА ЭКРАН И СТРЕЛЯЙ В ОТВЕТЫ!</div>
     <div id="win-screen">
       <h1>ПОБЕДА!</h1>
       <button onclick="location.reload()" style="padding:20px; font-size:24px; cursor:pointer;">ИГРАТЬ СНОВА</button>
