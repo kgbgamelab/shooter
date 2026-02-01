@@ -2,14 +2,13 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>Space Shooter: High Visibility</title>
+  <title>Shooter: High Contrast</title>
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 
   <style>
     body { margin: 0; overflow: hidden; user-select: none; }
     
-    /* ИНТЕРФЕЙС */
     #hud {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       pointer-events: none; z-index: 10;
@@ -17,29 +16,26 @@
     #q-box {
       position: absolute; top: 30px; width: 100%; text-align: center;
     }
-    /* Стиль вопроса */
     .q-text {
-      background: rgba(0, 20, 50, 0.9); /* Темно-синий фон */
-      border: 3px solid #00ffff; /* Голубая рамка */
-      border-radius: 15px;
+      background: rgba(0, 0, 0, 0.9);
+      border: 4px solid #00ff00;
+      border-radius: 10px;
       padding: 15px 40px;
-      color: #00ffff; /* Голубой текст */
-      font-family: monospace;
+      color: #00ff00;
+      font-family: sans-serif;
       font-size: 32px;
       font-weight: bold;
       display: inline-block;
-      box-shadow: 0 0 25px #00ffff; /* Яркое свечение */
-      text-shadow: 0 0 5px #00ffff;
+      box-shadow: 0 0 15px #00ff00;
     }
     #crosshair {
       position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
       transform: translate(-50%, -50%);
-      background: rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.2);
       border-radius: 50%;
       border: 2px solid white;
       transition: transform 0.1s;
     }
-    /* Стиль прицела при наведении */
     .crosshair-active {
         transform: translate(-50%, -50%) scale(3) !important;
         background: rgba(0, 255, 0, 0.5) !important;
@@ -57,11 +53,11 @@
   </style>
 
   <script>
-    // --- УРОВНИ (Примеры заданий) ---
+    // --- УРОВНИ ---
     const levels = [
       { q: "2 + 2 = ?", a: [ {t:"4", c:true}, {t:"5", c:false}, {t:"8", c:false} ] },
-      { q: "Столица РФ?", a: [ {t:"Москва", c:true}, {t:"Казань", c:false}, {t:"Сочи", c:false} ] },
-      { q: "Земля круглая?", a: [ {t:"Да", c:true}, {t:"Нет", c:false}, {t:"Плоская", c:false} ] }
+      { q: "10 - 7 = ?", a: [ {t:"3", c:true}, {t:"2", c:false}, {t:"10", c:false} ] },
+      { q: "ДА ИЛИ НЕТ?", a: [ {t:"ДА", c:true}, {t:"НЕТ", c:false}, {t:"НЕТ", c:false} ] }
     ];
 
     // --- АУДИО ---
@@ -89,13 +85,12 @@
       }
     }
 
-    // --- КОМПОНЕНТ ДВИЖЕНИЯ (ОРБИТА) ---
+    // --- КОМПОНЕНТ ДВИЖЕНИЯ ---
     AFRAME.registerComponent('ufo-movement', {
       schema: { offset: {default: 0}, speed: {default: 1} },
       init: function() { this.angle = this.data.offset; },
       tick: function(time, timeDelta) {
         if (!this.el.object3D.visible) return;
-        // Вращение по орбите и качание вверх-вниз
         this.angle += 0.0003 * this.data.speed * timeDelta;
         const r = 9; 
         const x = Math.cos(this.angle) * r;
@@ -116,8 +111,6 @@
 
         this.createStars();
         this.loadLevel(0);
-
-        // Клик мышкой
         document.addEventListener('mousedown', () => this.fireVisuals());
       },
 
@@ -138,7 +131,6 @@
                this.loadLevel(this.levelIdx);
            }, 800);
         } else {
-           // Ошибка - красная вспышка модели
            const model = parentEl.querySelector('.visual-model');
            model.setAttribute('material', 'color: red');
            setTimeout(() => model.setAttribute('material', 'color: white'), 200);
@@ -173,57 +165,51 @@
             el.setAttribute('look-at', '[camera]'); 
             el.setAttribute('ufo-movement', `offset: ${i * 2}; speed: ${0.8 + Math.random() * 0.5}`);
 
-            // 1. НЕВИДИМЫЙ ХИТБОКС (Огромный пузырь)
+            // 1. ХИТБОКС (ПУЗЫРЬ) - НЕВИДИМЫЙ
             const hitbox = document.createElement('a-sphere');
             hitbox.setAttribute('class', 'clickable');
-            hitbox.setAttribute('radius', '3.5'); // Еще больше радиус
+            hitbox.setAttribute('radius', '3.5');
             hitbox.setAttribute('material', 'opacity: 0; transparent: true; side: double');
             
             hitbox.addEventListener('click', () => this.onHit(ans.c, el));
             hitbox.addEventListener('mouseenter', () => document.getElementById('crosshair').classList.add('crosshair-active'));
             hitbox.addEventListener('mouseleave', () => document.getElementById('crosshair').classList.remove('crosshair-active'));
-            
             el.appendChild(hitbox);
 
-            // 2. ВИЗУАЛ ТАРЕЛКИ
+            // 2. МОДЕЛЬ НЛО
             const visual = document.createElement('a-entity');
             visual.setAttribute('class', 'visual-model');
             visual.innerHTML = `
                 <a-cone radius-bottom="1.5" radius-top="0.5" height="0.5" color="#777"></a-cone>
-                <a-ring radius-inner="1.5" radius-outer="1.8" color="${ans.c ? '#00ffff' : '#ff00ff'}" rotation="-90 0 0" material="side: double; emissive: ${ans.c ? '#00ffff' : '#ff00ff'}; emissiveIntensity: 0.5"></a-ring>
+                <a-ring radius-inner="1.5" radius-outer="1.8" color="${ans.c ? '#00ffff' : '#ff00ff'}" rotation="-90 0 0" material="side: double"></a-ring>
                 <a-sphere position="0 0.3 0" radius="0.8" color="#333" opacity="0.9"></a-sphere>
             `;
             visual.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 3000; easing: linear');
             el.appendChild(visual);
 
-            // ==================================================
-            // 3. ТЕКСТ ОТВЕТА (ИСПРАВЛЕНО: ЯРКАЯ ПАНЕЛЬ)
-            // ==================================================
+            // 3. ОТВЕТ (ИСПРАВЛЕНО: ЖЕЛТЫЙ НА ЧЕРНОМ)
+            // Мы создаем отдельную сущность для текста, чтобы она висела над НЛО
             const textGroup = document.createElement('a-entity');
-            textGroup.setAttribute('position', '0 2.5 0'); // Высоко над тарелкой
-            
-            // Яркая синяя светящаяся панель позади текста
+            textGroup.setAttribute('position', '0 3 0'); // Поднял еще выше (было 2.5)
+
+            // Черный фон (плоскость)
             const bg = document.createElement('a-plane');
-            // color: синий, emissive: свечение, opacity: полупрозрачность
-            bg.setAttribute('material', 'color: #0077ff; opacity: 0.8; transparent: true; side: double; emissive: #0077ff; emissiveIntensity: 0.6');
-            bg.setAttribute('width', '5');
-            bg.setAttribute('height', '2');
-            bg.setAttribute('position', '0 0 -0.1');
+            bg.setAttribute('color', 'black');
+            bg.setAttribute('width', '4');
+            bg.setAttribute('height', '1.5');
+            bg.setAttribute('opacity', '0.8');
             textGroup.appendChild(bg);
 
-            // Белый жирный текст
+            // Желтый текст
             const text = document.createElement('a-text');
             text.setAttribute('value', ans.t);
             text.setAttribute('align', 'center');
-            text.setAttribute('scale', '8 8 8'); // Крупно
-            text.setAttribute('color', '#ffffff'); // Белый цвет
-            text.setAttribute('font', 'roboto'); // Четкий шрифт
-            text.setAttribute('side', 'double');
+            text.setAttribute('width', '15'); // Увеличил ширину шрифта (размер)
+            text.setAttribute('color', '#FFFF00'); // Ярко-желтый
+            text.setAttribute('position', '0 0 0.1'); // Чуть вперед, чтобы не сливался с фоном
             textGroup.appendChild(text);
 
             el.appendChild(textGroup);
-            // ==================================================
-
             this.container.appendChild(el);
         });
       },
@@ -247,34 +233,28 @@
   <div id="hud">
     <div id="q-box"><div class="q-text">Загрузка...</div></div>
     <div id="crosshair"></div>
-    <div class="hint">КЛИКНИ ПО ЭКРАНУ ДЛЯ ЗАХВАТА ЦЕЛИ!</div>
+    <div class="hint">НАЖМИ НА ЭКРАН И СТРЕЛЯЙ В ЖЕЛТЫЕ ЦИФРЫ!</div>
     <div id="win-screen">
       <h1>ПОБЕДА!</h1>
       <button onclick="location.reload()" style="padding:20px; font-size:24px; cursor:pointer;">ИГРАТЬ СНОВА</button>
     </div>
   </div>
 
-  <a-scene background="color: #02020a" fog="type: exponential; color: #02020a; density: 0.02">
+  <a-scene background="color: #02020a">
     <a-entity game-manager></a-entity>
     <a-entity id="stars"></a-entity>
 
     <a-camera look-controls="pointerLockEnabled: true">
         <a-entity id="weapon" position="0.5 -0.4 -0.5">
             <a-box width="0.1" height="0.1" depth="0.5" color="#444"></a-box>
-            <a-cylinder id="laser" visible="false" position="0 0 -10" rotation="90 0 0" radius="0.03" height="20" color="#00ffff" opacity="0.8" material="emissive: #00ffff"></a-cylinder>
+            <a-cylinder id="laser" visible="false" position="0 0 -10" rotation="90 0 0" radius="0.03" height="20" color="#00ffff" opacity="0.8"></a-cylinder>
         </a-entity>
-
-        <a-cursor 
-            fuse="false"
-            raycaster="objects: .clickable; far: 100"
-            position="0 0 -1"
-            opacity="0">
-        </a-cursor>
+        <a-cursor fuse="false" raycaster="objects: .clickable; far: 100" position="0 0 -1" opacity="0"></a-cursor>
     </a-camera>
 
     <a-entity id="ufo-container"></a-entity>
-    <a-light type="ambient" color="#888"></a-light>
-    <a-light type="directional" intensity="0.8" position="-1 2 1" color="#ffffff"></a-light>
+    <a-light type="ambient" color="#FFF"></a-light>
+    <a-light type="directional" intensity="0.8" position="-1 2 1"></a-light>
   </a-scene>
 </body>
 </html>
