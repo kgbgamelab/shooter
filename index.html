@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>Space Shooter: Stable Version</title>
+  <title>Space Shooter: Final Stable</title>
   <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 
@@ -18,11 +18,11 @@
       position: absolute; top: 30px; width: 100%; text-align: center;
     }
     .q-box {
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.7);
       border: 3px solid #00ff00;
       box-shadow: 0 0 15px #00ff00;
-      border-radius: 10px;
-      padding: 15px 40px;
+      border-radius: 12px;
+      padding: 15px 30px;
       color: #fff;
       font-family: monospace;
       font-size: 32px;
@@ -30,15 +30,23 @@
       display: inline-block;
     }
     #crosshair {
-      position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
+      position: absolute; top: 50%; left: 50%; width: 24px; height: 24px;
       transform: translate(-50%, -50%);
-      border: 2px solid rgba(255, 0, 0, 0.8);
+      border: 2px solid rgba(255, 255, 255, 0.8);
       border-radius: 50%;
-      background: rgba(255, 0, 0, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+      transition: all 0.2s;
     }
+    /* Класс для активного прицела (при наведении) */
+    .crosshair-active {
+        border-color: red !important;
+        background: rgba(255, 0, 0, 0.3) !important;
+        transform: translate(-50%, -50%) scale(1.5) !important;
+    }
+    
     .hint {
         position: absolute; bottom: 15%; width: 100%; text-align: center; 
-        color: rgba(255,255,255,0.7); font-family: sans-serif; font-size: 16px;
+        color: rgba(255,255,255,0.6); font-family: sans-serif; font-size: 16px;
         animation: pulse 2s infinite;
     }
     @keyframes pulse { 0% {opacity: 0.5;} 50% {opacity: 1;} 100% {opacity: 0.5;} }
@@ -51,14 +59,14 @@
   </style>
 
   <script>
-    // --- УРОВНИ ---
+    // --- ДАННЫЕ УРОВНЕЙ ---
     const levels = [
-      { q: "2 + 2 = ?", a: [ {t:"4", c:true}, {t:"5", c:false}, {t:"22", c:false} ] },
-      { q: "10 - 3 = ?", a: [ {t:"7", c:true}, {t:"6", c:false}, {t:"13", c:false} ] },
-      { q: "5 x 5 = ?", a: [ {t:"25", c:true}, {t:"10", c:false}, {t:"50", c:false} ] }
+      { q: "2 + 2 = ?", a: [ {t:"4", c:true}, {t:"5", c:false}, {t:"0", c:false} ] },
+      { q: "10 - 3 = ?", a: [ {t:"7", c:true}, {t:"8", c:false}, {t:"13", c:false} ] },
+      { q: "6 x 6 = ?", a: [ {t:"36", c:true}, {t:"30", c:false}, {t:"12", c:false} ] }
     ];
 
-    // --- ЗВУКИ ---
+    // --- ЗВУКИ (Синтезатор) ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playSound(type) {
       if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -68,15 +76,15 @@
       const now = audioCtx.currentTime;
       
       if (type === 'shoot') { 
-        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.setValueAtTime(600, now);
         osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
         gain.gain.setValueAtTime(0.1, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
         osc.start(now); osc.stop(now + 0.1);
       } else if (type === 'hit') {
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(200, now);
-        osc.frequency.linearRampToValueAtTime(50, now + 0.3);
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(10, now + 0.3);
         gain.gain.setValueAtTime(0.2, now);
         gain.gain.linearRampToValueAtTime(0, now + 0.3);
         osc.start(now); osc.stop(now + 0.3);
@@ -84,7 +92,7 @@
     }
 
     // --- КОМПОНЕНТ ПОВЕДЕНИЯ ТАРЕЛКИ ---
-    AFRAME.registerComponent('ufo-logic', {
+    AFRAME.registerComponent('ufo-interaction', {
       schema: {
         isCorrect: {default: false},
         speed: {default: 1},
@@ -92,69 +100,73 @@
       },
       init: function() {
         this.angle = this.data.offset;
-        // Слушаем КЛИК (Это встроенное событие A-Frame, оно надежное)
-        this.el.addEventListener('click', this.onHit.bind(this));
         
-        // Слушаем наведение курсора (чтобы подсветить)
+        // СЛУШАЕМ КЛИК (Встроенная система A-Frame)
+        this.el.addEventListener('click', () => this.onHit());
+        
+        // Эффекты при наведении курсора
         this.el.addEventListener('mouseenter', () => {
-            this.el.querySelector('.ufo-ring').setAttribute('color', 'white');
+           document.getElementById('crosshair').classList.add('crosshair-active');
+           this.el.querySelector('.ufo-ring').setAttribute('color', 'white');
         });
         this.el.addEventListener('mouseleave', () => {
-            this.el.querySelector('.ufo-ring').setAttribute('color', this.data.isCorrect ? '#00ffff' : '#ff00ff');
+           document.getElementById('crosshair').classList.remove('crosshair-active');
+           this.el.querySelector('.ufo-ring').setAttribute('color', this.data.isCorrect ? '#00ffff' : '#ff00ff');
         });
       },
       tick: function(time, timeDelta) {
         if (!this.el.object3D.visible) return;
 
-        // Движение по орбите
-        this.angle += (this.data.speed * 0.0005) * timeDelta;
-        const r = 8; // Радиус орбиты
+        // 1. Движение группы по орбите (летаем вокруг игрока)
+        this.angle += (this.data.speed * 0.0003) * timeDelta;
+        const r = 8; // Дистанция
         const x = Math.cos(this.angle) * r;
         const z = Math.sin(this.angle) * r;
-        // Покачивание вверх-вниз
-        const y = Math.sin(time * 0.002 + this.data.offset) * 2 + 3;
-
+        const y = Math.sin(time * 0.001 + this.data.offset) * 2 + 3; // Вверх-вниз
         this.el.setAttribute('position', {x, y, z});
-        this.el.object3D.rotation.y += 0.02; // Вращение вокруг оси
+
+        // 2. Вращение ТОЛЬКО МОДЕЛИ тарелки (текст не вращается!)
+        const model = this.el.querySelector('.ufo-visuals');
+        if(model) model.object3D.rotation.y += 0.03;
       },
       onHit: function() {
-        // Запускаем звук и анимацию оружия глобально
-        document.querySelector('[game-manager]').components['game-manager'].fireEffect();
+        // Визуальный эффект выстрела
+        const manager = document.querySelector('[game-manager]').components['game-manager'];
+        manager.fireLaser();
 
         if (this.data.isCorrect) {
           playSound('hit');
-          // Эффект взрыва (частицы)
-          this.createExplosion(this.el.getAttribute('position'));
+          this.explode();
           
           // Скрываем тарелку
           this.el.setAttribute('visible', false);
-          this.el.classList.remove('collidable'); // Отключаем кликабельность
-
-          // Сообщаем игре, что уровень пройден
-          setTimeout(() => {
-             document.querySelector('[game-manager]').components['game-manager'].nextLevel();
-          }, 1000);
+          this.el.classList.remove('clickable'); // Убираем класс, чтобы нельзя было кликнуть снова
+          
+          // Переход на следующий уровень
+          setTimeout(() => manager.nextLevel(), 1000);
         } else {
           // Ошибка
-          playSound('shoot'); // Просто звук выстрела
-          const sphere = this.el.querySelector('.ufo-core');
-          sphere.setAttribute('color', 'red');
-          setTimeout(() => sphere.setAttribute('color', '#333'), 300);
+          playSound('shoot');
+          const core = this.el.querySelector('.ufo-core');
+          core.setAttribute('color', 'red');
+          setTimeout(() => core.setAttribute('color', '#333'), 200);
         }
       },
-      createExplosion: function(pos) {
-          // Создаем облако частиц вручную
-          for(let i=0; i<10; i++) {
+      explode: function() {
+          // Создаем частицы взрыва
+          const pos = this.el.getAttribute('position');
+          for(let i=0; i<8; i++) {
               const p = document.createElement('a-sphere');
               p.setAttribute('radius', 0.2);
               p.setAttribute('color', 'orange');
               p.setAttribute('position', pos);
-              // Разлетаются в разные стороны
-              const dest = `${pos.x + (Math.random()-0.5)*5} ${pos.y + (Math.random()-0.5)*5} ${pos.z + (Math.random()-0.5)*5}`;
-              p.setAttribute('animation', `property: position; to: ${dest}; dur: 500; easing: easeOutQuad`);
-              p.setAttribute('animation__fade', `property: opacity; to: 0; dur: 500`);
+              p.setAttribute('shader', 'flat');
+              // Разлет в стороны
+              const randDest = `${pos.x + (Math.random()-0.5)*4} ${pos.y + (Math.random()-0.5)*4} ${pos.z + (Math.random()-0.5)*4}`;
+              p.setAttribute('animation', `property: position; to: ${randDest}; dur: 600; easing: easeOutQuad`);
+              p.setAttribute('animation__fade', `property: opacity; from: 1; to: 0; dur: 600`);
               this.el.sceneEl.appendChild(p);
-              setTimeout(()=>p.remove(), 500);
+              setTimeout(()=>p.remove(), 600);
           }
       }
     });
@@ -165,23 +177,23 @@
         this.levelIdx = 0;
         this.container = document.getElementById('ufo-container');
         this.qText = document.getElementById('q-text');
-        this.weapon = document.getElementById('weapon-model');
         this.laser = document.getElementById('laser-beam');
+        this.weapon = document.getElementById('weapon-recoil-box');
 
-        // Создаем звезды (Фон)
+        // Звезды
         this.createStars();
-        
-        // Глобальный клик для визуального эффекта (отдача и лазер)
-        // Но логика попадания теперь внутри 'ufo-logic'
-        document.addEventListener('mousedown', () => this.fireEffect());
-
         this.loadLevel(0);
+        
+        // Звук выстрела при любом клике (для атмосферы)
+        document.addEventListener('mousedown', () => {
+             this.fireLaser();
+        });
       },
-      fireEffect: function() {
+      fireLaser: function() {
         playSound('shoot');
         // Анимация отдачи
-        this.weapon.emit('recoil');
-        // Показываем лазер
+        this.weapon.setAttribute('animation', 'property: position; from: 0 0 0; to: 0 0 0.2; dur: 50; dir: alternate; loop: 2');
+        // Показ лазера
         this.laser.setAttribute('visible', true);
         setTimeout(() => this.laser.setAttribute('visible', false), 80);
       },
@@ -201,18 +213,38 @@
 
         data.a.forEach((ans, i) => {
             const el = document.createElement('a-entity');
-            el.setAttribute('ufo-logic', `isCorrect: ${ans.c}; offset: ${i*2}; speed: ${1 + Math.random()}`);
-            el.setAttribute('class', 'collidable'); // Класс для луча
-            el.setAttribute('look-at', '[camera]');
+            el.setAttribute('ufo-interaction', `isCorrect: ${ans.c}; offset: ${i*2}; speed: ${1 + Math.random()}`);
+            el.setAttribute('class', 'clickable'); // ЭТОТ КЛАСС ВАЖЕН ДЛЯ ЛУЧА
+            el.setAttribute('look-at', '[camera]'); // Вся группа смотрит на камеру (для текста)
 
-            // Модель
-            el.innerHTML = `
-                <a-cone radius-bottom="1.2" radius-top="0.5" height="0.5" color="#555"></a-cone>
+            // 1. Хитбокс (Невидимый большой шар для клика)
+            // Мы ставим его первым, чтобы луч попадал в него легко
+            const hitbox = document.createElement('a-sphere');
+            hitbox.setAttribute('radius', '2.5'); // БОЛЬШОЙ РАДИУС
+            hitbox.setAttribute('visible', false);
+            // Важно: хитбокс должен быть clickable, если мы хотим кликать именно по нему
+            // Но в A-Frame событие всплывает, так что вешаем класс на родителя
+            el.appendChild(hitbox);
+
+            // 2. Визуальная модель (Вращается отдельно внутри группы)
+            const visualGroup = document.createElement('a-entity');
+            visualGroup.setAttribute('class', 'ufo-visuals');
+            visualGroup.innerHTML = `
+                <a-cone radius-bottom="1.2" radius-top="0.4" height="0.5" color="#555"></a-cone>
                 <a-ring class="ufo-ring" radius-inner="1.2" radius-outer="1.4" color="${ans.c ? '#00ffff' : '#ff00ff'}" rotation="-90 0 0"></a-ring>
                 <a-sphere class="ufo-core" position="0 0.2 0" radius="0.6" color="#333" opacity="0.9"></a-sphere>
-                <a-text value="${ans.t}" align="center" position="0 1.5 0" scale="5 5 5" color="#00ff00"></a-text>
-                <a-sphere radius="2" visible="false"></a-sphere>
             `;
+            el.appendChild(visualGroup);
+
+            // 3. Текст ответа (Висит статично относительно группы)
+            const text = document.createElement('a-text');
+            text.setAttribute('value', ans.t);
+            text.setAttribute('align', 'center');
+            text.setAttribute('position', '0 1.5 0'); // Над тарелкой
+            text.setAttribute('scale', '5 5 5');
+            text.setAttribute('color', '#00ff00');
+            el.appendChild(text);
+
             this.container.appendChild(el);
         });
       },
@@ -236,10 +268,11 @@
   <div id="hud">
     <div id="question-container"><div class="q-box" id="q-text">Loading...</div></div>
     <div id="crosshair"></div>
-    <div class="hint">КЛИКНИ ПО ЭКРАНУ, ЧТОБЫ НАЧАТЬ ИГРУ</div>
+    <div class="hint">КЛИКНИ ПО ЭКРАНУ, ЧТОБЫ НАЧАТЬ</div>
+    
     <div id="win-screen">
       <h1>ПОБЕДА!</h1>
-      <button onclick="location.reload()" style="padding:15px; font-size:20px; background:lime; cursor:pointer;">ИГРАТЬ СНОВА</button>
+      <button onclick="location.reload()" style="padding:15px; font-size:20px; background:lime; border:none; cursor:pointer;">ИГРАТЬ СНОВА</button>
     </div>
   </div>
 
@@ -249,17 +282,17 @@
 
     <a-camera look-controls="pointerLockEnabled: true">
         
-        <a-entity id="weapon-model" position="0.4 -0.4 -0.6">
-            <a-box width="0.1" height="0.1" depth="0.5" color="#444"></a-box>
-            <a-box width="0.12" height="0.2" depth="0.15" position="0 -0.1 0.15" color="#222"></a-box>
-            <a-animation attribute="position" begin="recoil" from="0.4 -0.4 -0.5" to="0.4 -0.4 -0.6" dur="100"></a-animation>
-            
+        <a-entity position="0.4 -0.4 -0.6">
+            <a-entity id="weapon-recoil-box">
+                <a-box width="0.1" height="0.1" depth="0.5" color="#444"></a-box>
+                <a-box width="0.12" height="0.2" depth="0.15" position="0 -0.1 0.15" color="#222"></a-box>
+            </a-entity>
             <a-cylinder id="laser-beam" visible="false" position="0 0 -10" rotation="90 0 0" radius="0.02" height="20" color="red" opacity="0.8" material="shader: flat"></a-cylinder>
         </a-entity>
 
         <a-cursor 
             fuse="false" 
-            raycaster="objects: .collidable; far: 100; interval: 100"
+            raycaster="objects: .clickable; far: 100"
             opacity="0"
             position="0 0 -1">
         </a-cursor>
